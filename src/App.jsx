@@ -13,6 +13,7 @@ import Factures from "./pages/Factures";
 import IndexCompteur from "./pages/IndexCompteur";
 import Alertes from "./pages/Alertes";
 import Avis from "./pages/Avis";
+import Demandes from "./pages/Demandes";
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth();
@@ -56,6 +57,7 @@ export default function App() {
           <Route path="compteurs/:id/index" element={<IndexCompteur />} />
           <Route path="alertes" element={<Alertes />} />
           <Route path="avis" element={<Avis />} />
+          <Route path="demandes" element={<Demandes />} />
         </Route>
       </Routes>
     </BrowserRouter>

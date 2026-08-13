@@ -130,4 +130,13 @@ export const avisService = {
   traiter: id => api.post(`/avis/${id}/traiter/`),
 };
 
+export const demandeService = {
+  getAll: () => api.get("/demandes/"),
+  creer: data =>
+    api.post("/demandes/creer/", data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+  traiter: (id, data) => api.post(`/demandes/${id}/traiter/`, data),
+};
+
 export default api;

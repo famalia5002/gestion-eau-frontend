@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { clientService } from "../services/api";
+import { clientService, demandeService } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import {
   MdAdd,
@@ -14,7 +14,11 @@ import {
   MdClose,
   MdSave,
   MdCameraAlt,
+  MdCheckCircle,
+  MdCancel,
+  MdDescription,
 } from "react-icons/md";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   MapContainer,
   TileLayer,
@@ -60,6 +64,9 @@ function CentrerCarte({ position }) {
 }
 
 export default function Clients() {
+  const [passwordTemp, setPasswordTemp] = useState("");
+  const location = useLocation();
+  const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recherche, setRecherche] = useState("");
@@ -97,7 +104,72 @@ export default function Clients() {
     latitude: "",
     longitude: "",
     photo: null,
+    type_client: "proprietaire",
+    statut_abonnement: "actif",
+    doc_cin: false,
+    doc_attestation: false,
+    doc_contrat_location: false,
+    doc_convention: false,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("from") === "demande") {
+      const demandeData = localStorage.getItem("demande_a_traiter");
+      if (demandeData) {
+        const demande = JSON.parse(demandeData);
+        préremplirDepuisDemande(demande);
+        localStorage.removeItem("demande_a_traiter");
+      }
+    }
+  }, [location]);
+  const genererPassword = () => {
+    const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    let password = "";
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+  const préremplirDepuisDemande = demande => {
+    const passwordTemp = genererPassword();
+    setClientSelectionne(null);
+    setPhotoPreview(null);
+    setPosition(
+      demande.latitude && demande.longitude
+        ? { lat: demande.latitude, lng: demande.longitude }
+        : null
+    );
+    setFormData({
+      username:
+        `${demande.prenom.toLowerCase()}.${demande.nom.toLowerCase()}`.replace(
+          /\s/g,
+          ""
+        ),
+      email: demande.email,
+      first_name: demande.prenom,
+      last_name: demande.nom,
+      password: passwordTemp,
+      telephone: demande.telephone,
+      adresse: demande.adresse || "",
+      zone: demande.zone || "",
+      latitude: demande.latitude || "",
+      longitude: demande.longitude || "",
+      photo: null,
+      type_client: demande.type_client || "proprietaire",
+      statut_abonnement: "en_traitement",
+      doc_cin: !!demande.photo_cin_url,
+      doc_attestation: !!demande.photo_attestation_url,
+      doc_contrat_location: !!demande.photo_contrat_url,
+      doc_convention: !!demande.photo_convention_url,
+    });
+    // Afficher banner documents
+    setPasswordTemp(passwordTemp);
+    setDemandeSource(demande);
+    setShowModal(true);
+  };
+
+  const [demandeSource, setDemandeSource] = useState(null);
 
   useEffect(() => {
     fetchClients();
@@ -165,6 +237,12 @@ export default function Clients() {
       latitude: "",
       longitude: "",
       photo: null,
+      type_client: "proprietaire",
+      statut_abonnement: "en_traitement",
+      doc_cin: false,
+      doc_attestation: false,
+      doc_contrat_location: false,
+      doc_convention: false,
     });
     setShowModal(true);
   };
@@ -189,6 +267,12 @@ export default function Clients() {
       latitude: client.latitude || "",
       longitude: client.longitude || "",
       photo: null,
+      type_client: client.type_client || "proprietaire",
+      statut_abonnement: client.statut_abonnement || "actif",
+      doc_cin: client.doc_cin || false,
+      doc_attestation: client.doc_attestation || false,
+      doc_contrat_location: client.doc_contrat_location || false,
+      doc_convention: client.doc_convention || false,
     });
     setShowModal(true);
   };
@@ -235,15 +319,33 @@ export default function Clients() {
       } else {
         await clientService.create(data);
         setMessage({ type: "success", texte: "Client ajouté avec succès !" });
+
+        // Marquer la demande comme acceptée
+        if (demandeSource) {
+          console.log("Marquage demande:", demandeSource.id);
+          try {
+            await demandeService.traiter(demandeSource.id, {
+              action: "accepter_manuel",
+              password_temporaire: formData.password,
+            });
+            console.log("Demande marquée acceptée !");
+          } catch (err) {
+            console.error("Erreur mise à jour demande:", err);
+          }
+          setDemandeSource(null);
+        }
       }
       setShowModal(false);
       fetchClients();
     } catch (error) {
-      setMessage({ type: "error", texte: "Une erreur est survenue." });
+      const erreurs = error.response?.data;
+      const msg = erreurs
+        ? Object.values(erreurs).flat().join(", ")
+        : "Une erreur est survenue.";
+      setMessage({ type: "error", texte: msg });
     }
     setTimeout(() => setMessage({ type: "", texte: "" }), 3000);
   };
-
   const supprimerClient = async id => {
     if (!confirm("Voulez-vous vraiment supprimer ce client ?")) return;
     try {
@@ -255,6 +357,12 @@ export default function Clients() {
     }
     setTimeout(() => setMessage({ type: "", texte: "" }), 3000);
   };
+
+  const cinUrl = demandeSource?.photo_cin_url || null;
+  const attestationUrl = demandeSource?.photo_attestation_url || null;
+  const contratUrl = demandeSource?.photo_contrat_url || null;
+  const conventionUrl = demandeSource?.photo_convention_url || null;
+  const demandeId = demandeSource?.id || null;
 
   return (
     <div className="space-y-6">
@@ -389,9 +497,34 @@ export default function Clients() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                      {client.zone || "Non définie"}
-                    </span>
+                    <div className="space-y-1">
+                      <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                        {client.zone || "Non définie"}
+                      </span>
+                      {client.statut_abonnement && (
+                        <div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              client.statut_abonnement === "actif"
+                                ? "bg-green-50 text-green-700"
+                                : client.statut_abonnement === "en_traitement"
+                                  ? "bg-yellow-50 text-yellow-700"
+                                  : client.statut_abonnement === "suspendu"
+                                    ? "bg-orange-50 text-orange-700"
+                                    : "bg-red-50 text-red-700"
+                            }`}
+                          >
+                            {client.statut_abonnement === "actif"
+                              ? "Actif"
+                              : client.statut_abonnement === "en_traitement"
+                                ? "En traitement"
+                                : client.statut_abonnement === "suspendu"
+                                  ? "Suspendu"
+                                  : "Résilié"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     {client.latitude && client.longitude ? (
@@ -457,6 +590,91 @@ export default function Clients() {
               className="p-6 space-y-4"
               autoComplete="off"
             >
+              {/* Banner si vient d'une demande */}
+              {demandeSource && (
+                <div className="bg-blue-50 dark:bg-blue-900 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                    Demande #{demandeId} - Documents fournis
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      {cinUrl ? (
+                        <a
+                          href={cinUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary-600 text-xs font-medium"
+                        >
+                          <MdDescription className="text-base" />
+                          CIN / Passeport
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <MdDescription className="text-base opacity-30" />
+                          <span className="opacity-50">CIN / Passeport</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      {attestationUrl ? (
+                        <a
+                          href={attestationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary-600 text-xs font-medium"
+                        >
+                          <MdDescription className="text-base" />
+                          Attestation
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <MdDescription className="text-base opacity-30" />
+                          <span className="opacity-50">Attestation</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      {contratUrl ? (
+                        <a
+                          href={contratUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary-600 text-xs font-medium"
+                        >
+                          <MdDescription className="text-base" />
+                          Contrat location
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <MdDescription className="text-base opacity-30" />
+                          <span className="opacity-50">Contrat location</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      {conventionUrl ? (
+                        <a
+                          href={conventionUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-primary-600 text-xs font-medium"
+                        >
+                          <MdDescription className="text-base" />
+                          Convention
+                        </a>
+                      ) : (
+                        <div className="flex items-center gap-1 text-gray-400 text-xs">
+                          <MdDescription className="text-base opacity-30" />
+                          <span className="opacity-50">Convention</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Photo */}
               <div className="flex justify-center">
                 <label className="cursor-pointer group relative">
@@ -561,22 +779,31 @@ export default function Clients() {
                 </div>
               </div>
 
-              {/* Password (ajout seulement) */}
+              {/* Password - auto généré depuis demande */}
               {!clientSelectionne && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Mot de passe *
+                    Mot de passe temporaire
                   </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={e =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    autoComplete="new-password"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                    required
-                  />
+                  {demandeSource ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 rounded-xl text-sm font-mono text-gray-700 dark:text-white">
+                        {formData.password}
+                      </div>
+                      <span className="text-xs text-gray-400">Auto-généré</span>
+                    </div>
+                  ) : (
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={e =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      autoComplete="new-password"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                      required
+                    />
+                  )}
                 </div>
               )}
 
@@ -695,6 +922,125 @@ export default function Clients() {
                     {position.lng.toFixed(4)}
                   </p>
                 )}
+              </div>
+
+              {/* Type de client */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Type de client
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="type_client"
+                      value="proprietaire"
+                      checked={formData.type_client === "proprietaire"}
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          type_client: e.target.value,
+                        })
+                      }
+                      className="text-primary-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Propriétaire
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="type_client"
+                      value="locataire"
+                      checked={formData.type_client === "locataire"}
+                      onChange={e =>
+                        setFormData({
+                          ...formData,
+                          type_client: e.target.value,
+                        })
+                      }
+                      className="text-primary-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      Locataire
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Statut abonnement */}
+              {/* Statut abonnement - seulement en modification */}
+              {clientSelectionne && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Statut abonnement
+                  </label>
+                  <select
+                    value={formData.statut_abonnement}
+                    onChange={e =>
+                      setFormData({
+                        ...formData,
+                        statut_abonnement: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-300 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  >
+                    <option value="actif">Actif</option>
+                    <option value="en_traitement">
+                      En cours de traitement
+                    </option>
+                    <option value="suspendu">Suspendu</option>
+                    <option value="resilie">Résilié</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Documents fournis */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Documents fournis
+                </label>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 space-y-2">
+                  {[
+                    {
+                      key: "doc_cin",
+                      label: "CIN / Passeport / Permis de conduire",
+                    },
+                    {
+                      key: "doc_attestation",
+                      label: "Attestation du propriétaire",
+                    },
+                    {
+                      key: "doc_contrat_location",
+                      label: "Contrat de location",
+                    },
+                    {
+                      key: "doc_convention",
+                      label: "Convention compteurs divisionnaires",
+                    },
+                  ].map(doc => (
+                    <label
+                      key={doc.key}
+                      className="flex items-center gap-3 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formData[doc.key] || false}
+                        onChange={e =>
+                          setFormData({
+                            ...formData,
+                            [doc.key]: e.target.checked,
+                          })
+                        }
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
+                        {doc.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               {/* Boutons */}
@@ -829,6 +1175,64 @@ export default function Clients() {
                   </MapContainer>
                 </div>
               )}
+
+              {/* Type et statut */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 mb-1">Type client</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white capitalize">
+                    {clientDetail.type_client || "Non défini"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                  <p className="text-xs text-gray-400 mb-1">
+                    Statut abonnement
+                  </p>
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      clientDetail.statut_abonnement === "actif"
+                        ? "bg-green-50 text-green-700"
+                        : clientDetail.statut_abonnement === "en_traitement"
+                          ? "bg-yellow-50 text-yellow-700"
+                          : clientDetail.statut_abonnement === "suspendu"
+                            ? "bg-orange-50 text-orange-700"
+                            : "bg-red-50 text-red-700"
+                    }`}
+                  >
+                    {clientDetail.statut_abonnement === "actif"
+                      ? "Actif"
+                      : clientDetail.statut_abonnement === "en_traitement"
+                        ? "En traitement"
+                        : clientDetail.statut_abonnement === "suspendu"
+                          ? "Suspendu"
+                          : "Résilié"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Documents */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <p className="text-xs text-gray-400 mb-2">Documents fournis</p>
+                <div className="grid grid-cols-2 gap-1">
+                  {[
+                    { key: "doc_cin", label: "CIN / Passeport" },
+                    { key: "doc_attestation", label: "Attestation" },
+                    { key: "doc_contrat_location", label: "Contrat location" },
+                    { key: "doc_convention", label: "Convention" },
+                  ].map(doc => (
+                    <div key={doc.key} className="flex items-center gap-1">
+                      {clientDetail[doc.key] ? (
+                        <MdCheckCircle className="text-green-500 text-sm" />
+                      ) : (
+                        <MdCancel className="text-gray-300 text-sm" />
+                      )}
+                      <span className="text-xs text-gray-600 dark:text-gray-300">
+                        {doc.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Boutons fixe en bas */}

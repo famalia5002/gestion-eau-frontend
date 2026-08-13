@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { MdWaterDrop } from "react-icons/md";
+import { MdWaterDrop, MdPersonAdd } from "react-icons/md";
 import logo from "../assets/logo.jpg";
 import {
   MdDashboard,
@@ -23,6 +23,7 @@ const menuItems = [
   { path: "/admin/factures", icon: MdReceipt, label: "Factures" },
   { path: "/admin/alertes", icon: MdNotifications, label: "Alertes" },
   { path: "/admin/avis", icon: MdStar, label: "Avis clients" },
+  { path: "/admin/demandes", icon: MdPersonAdd, label: "Demandes abonnement" },
 ];
 
 const menuSuperAdmin = [

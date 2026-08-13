@@ -13,6 +13,9 @@ export default function Layout() {
     "/admin/factures": "Gestion des factures",
     "/admin/alertes": "Gestion des alertes",
     "/admin/avis": "Avis des clients",
+    "/admin/admins-zones": "Admins Zones",
+    "/admin/profil": "Mon profil",
+    "/admin/demandes": "Demandes d'abonnement",
   };
 
   const titre = titres[location.pathname] || "Dashboard";
