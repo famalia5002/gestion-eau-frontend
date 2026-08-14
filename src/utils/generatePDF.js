@@ -158,7 +158,7 @@ export const genererFacturePDF = async facture => {
     if (ancienIndex) {
       indexData.push([
         "Ancien index",
-        `${ancienIndex.valeur_index} m³`,
+        `${parseFloat(ancienIndex.valeur_index).toFixed(3)} m³`,
         new Date(ancienIndex.date_releve).toLocaleDateString("fr-FR"),
       ]);
     }
@@ -166,16 +166,16 @@ export const genererFacturePDF = async facture => {
     if (nouvelIndex) {
       indexData.push([
         "Nouvel index",
-        `${nouvelIndex.valeur_index} m³`,
+        `${parseFloat(nouvelIndex.valeur_index).toFixed(3)} m³`,
         new Date(nouvelIndex.date_releve).toLocaleDateString("fr-FR"),
       ]);
     }
 
     if (ancienIndex && nouvelIndex) {
-      const conso = (
+      const conso = parseFloat(
         nouvelIndex.valeur_index - ancienIndex.valeur_index
       ).toFixed(4);
-      const consoLitres = (parseFloat(conso) * 1000).toFixed(2);
+      const consoLitres = (conso * 1000).toFixed(2);
       indexData.push([
         "Consommation calculée",
         `${conso} m³  =  ${consoLitres} L`,
@@ -221,6 +221,35 @@ export const genererFacturePDF = async facture => {
 
     currentY = doc.lastAutoTable.finalY + 10;
   }
+  // ===== DÉTAIL TRANCHES =====
+  if (facture.tarif_detail) {
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 78, 121);
+    doc.text("Tarification par tranches :", 15, currentY);
+    currentY += 6;
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text(
+      `Tranche sociale    (0 - 20 m³)  : ${facture.tarif_detail.prix_ts} FCFA/m³`,
+      20,
+      currentY
+    );
+    currentY += 5;
+    doc.text(
+      `Tranche progressive (21 - 40 m³) : ${facture.tarif_detail.prix_tp} FCFA/m³`,
+      20,
+      currentY
+    );
+    currentY += 5;
+    doc.text(
+      `Tranche dissuasive  (> 40 m³)    : ${facture.tarif_detail.prix_td} FCFA/m³`,
+      20,
+      currentY
+    );
+    currentY += 10;
+  }
 
   // ===== DÉTAILS FACTURE =====
   doc.setTextColor(0, 0, 0);
@@ -237,9 +266,7 @@ export const genererFacturePDF = async facture => {
       [
         "Consommation d'eau potable",
         `${facture.volume_total} L`,
-        facture.tarif_detail
-          ? `${facture.tarif_detail.prix_litre} FCFA/L`
-          : "N/A",
+        facture.tarif_detail ? `Voir détail tranches ci-dessus` : "N/A",
         `${facture.montant?.toLocaleString("fr-FR")} FCFA`,
       ],
     ],
