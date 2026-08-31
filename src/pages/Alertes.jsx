@@ -18,7 +18,7 @@ import {
 
 const TYPES_ALERTES = {
   fuite: {
-    label: "Fuite probable",
+    label: "Fuite ",
     color: "bg-red-50 text-red-700",
     icon: MdError,
     bg: "bg-red-50",
@@ -106,18 +106,30 @@ export default function Alertes() {
   };
 
   // Résoudre une alerte
-  const handleResoudre = async alerteId => {
-    setLoadingResolution(true);
+  const handleResoudre = async alerte => {
+    let message = "";
+
+    if (alerte.type_alerte === "fuite") {
+      if (alerte.compteur_detail?.etat_vanne === "fermee") {
+        message = `Confirmer la résolution de cette alerte de fuite ?\n\nNote : La vanne du compteur ${alerte.compteur_detail?.numero_compteur} est fermée. Pensez à la rouvrir manuellement depuis la page Compteurs une fois la fuite réparée.`;
+      } else {
+        message = `Marquer cette alerte de fuite comme résolue ?\n\nNote : La vanne est encore ouverte.`;
+      }
+    } else if (alerte.type_alerte === "vanne_fermee") {
+      message = `Marquer cette alerte comme résolue ?\n\nNote : Pensez à rouvrir la vanne depuis la page Compteurs si nécessaire.`;
+    } else if (alerte.type_alerte === "surconsommation") {
+      message = "Marquer cette alerte de surconsommation comme résolue ?";
+    } else {
+      message = "Résoudre cette alerte ?";
+    }
+
+    if (!confirm(message)) return;
+
     try {
-      await alerteService.resoudre(alerteId);
-      setMessage({ type: "success", texte: "Alerte résolue avec succès !" });
-      setShowDetail(false);
+      await alerteService.resoudre(alerte.id);
       fetchAlertes();
     } catch (error) {
-      setMessage({ type: "error", texte: "Erreur lors de la résolution." });
-    } finally {
-      setLoadingResolution(false);
-      setTimeout(() => setMessage({ type: "", texte: "" }), 3000);
+      console.error("Erreur résolution:", error);
     }
   };
 
@@ -388,7 +400,7 @@ export default function Alertes() {
                         </button>
                         {alerte.statut === "en_cours" && (
                           <button
-                            onClick={() => handleResoudre(alerte.id)}
+                            onClick={() => handleResoudre(alerte)}
                             className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"
                             title="Résoudre l'alerte"
                           >

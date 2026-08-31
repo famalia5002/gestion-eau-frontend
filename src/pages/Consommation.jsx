@@ -23,13 +23,16 @@ import {
 } from "react-icons/md";
 import {
   AreaChart,
+  BarChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Bar,
 } from "recharts";
+import { genererEtEnvoyerPDF, envoyerPDFParEmail } from "../utils/generatePDF";
 
 const PERIODES = [
   { value: "journalier", label: "Aujourd'hui" },
@@ -112,9 +115,14 @@ export default function Consommation() {
     setLoadingFacture(true);
     try {
       const response = await factureService.generer(clientId);
+      const facture = response.data.facture;
+
+      // Générer PDF + envoyer par email automatiquement
+      await genererEtEnvoyerPDF(facture);
+
       setMessageFacture({
         type: "success",
-        texte: response.data.message,
+        texte: `Facture générée et envoyée par email au client !`,
       });
       setShowModalFacture(false);
     } catch (error) {
@@ -127,15 +135,22 @@ export default function Consommation() {
       setTimeout(() => setMessageFacture({ type: "", texte: "" }), 4000);
     }
   };
-
   const handleGenererToutes = async () => {
     if (!confirm("Générer les factures pour tous les clients ?")) return;
     setLoadingFacture(true);
     try {
       const response = await factureService.genererToutes();
+
+      // Envoyer PDF par email pour chaque facture (sans ouvrir d'onglet)
+      if (response.data.factures_data) {
+        for (const factureData of response.data.factures_data) {
+          await envoyerPDFParEmail(factureData);
+        }
+      }
+
       setMessageFacture({
         type: "success",
-        texte: response.data.message,
+        texte: `${response.data.message} - PDFs envoyés par email aux clients !`,
       });
     } catch (error) {
       setMessageFacture({
@@ -190,16 +205,63 @@ export default function Consommation() {
     .toFixed(2);
 
   // Données graphique
-  const donneesGraphique = consommationsFiltrees
-    .slice(0, 20)
-    .reverse()
-    .map(c => ({
-      volume: c.volume,
-      date: new Date(c.date_heure).toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    }));
+  const donneesGraphique = () => {
+    if (!consommations || consommations.length === 0) return [];
+    try {
+      if (periode === "journalier") {
+        const parHeure = {};
+        consommations.forEach(c => {
+          const heure = new Date(c.date_heure).getHours();
+          const label = `${heure}h`;
+          parHeure[label] = (parHeure[label] || 0) + c.volume;
+        });
+        return Object.entries(parHeure)
+          .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+          .map(([h, v]) => ({ date: h, volume: parseFloat(v.toFixed(2)) }));
+      }
+      if (periode === "mensuel") {
+        const parJour = {};
+        consommations.forEach(c => {
+          const jour = new Date(c.date_heure).getDate();
+          parJour[jour] = (parJour[jour] || 0) + c.volume;
+        });
+        return Object.entries(parJour)
+          .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+          .map(([j, v]) => ({
+            date: `Jour ${j}`,
+            volume: parseFloat(v.toFixed(2)),
+          }));
+      }
+      if (periode === "annuel") {
+        const moisFr = [
+          "Jan",
+          "Fév",
+          "Mar",
+          "Avr",
+          "Mai",
+          "Jun",
+          "Jul",
+          "Aoû",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Déc",
+        ];
+        const parMois = {};
+        consommations.forEach(c => {
+          const mois = moisFr[new Date(c.date_heure).getMonth()];
+          parMois[mois] = (parMois[mois] || 0) + c.volume;
+        });
+        return moisFr
+          .filter(m => parMois[m] > 0)
+          .map(m => ({ date: m, volume: parseFloat(parMois[m].toFixed(2)) }));
+      }
+    } catch (error) {
+      console.error("Erreur graphique:", error);
+      return [];
+    }
+    return [];
+  };
 
   return (
     <div className="space-y-6">
@@ -453,34 +515,53 @@ export default function Consommation() {
       )}
 
       {/* Graphique */}
-      {consommationsFiltrees.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-          <h4 className="font-bold text-gray-800 dark:text-white mb-4">
-            Évolution de la consommation
-          </h4>
-          <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={donneesGraphique}>
-              <defs>
-                <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2E75B6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#2E75B6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip content={<TooltipPerso />} />
-              <Area
-                type="monotone"
-                dataKey="volume"
-                stroke="#2E75B6"
-                strokeWidth={3}
-                fill="url(#colorVolume)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      {(() => {
+        const data = donneesGraphique();
+        if (!data || data.length === 0) return null;
+        return (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm mb-4">
+            <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-3">
+              {periode === "journalier"
+                ? "Consommation par heure"
+                : periode === "mensuel"
+                  ? "Consommation par jour du mois"
+                  : "Consommation par mois"}
+            </h4>
+            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full">
+              {user?.role === "super_admin"
+                ? "Toutes les zones"
+                : `Zone : ${user?.zone}`}
+            </span>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={data}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} unit=" L" />
+                <Tooltip
+                  formatter={value => [`${value} L`, "Volume consommé"]}
+                  labelFormatter={label => {
+                    if (periode === "journalier") return `Heure : ${label}`;
+                    if (periode === "mensuel") return `Jour ${label}`;
+                    return `Mois : ${label}`;
+                  }}
+                  cursor={{ fill: "#EFF6FF" }}
+                />
+                <Bar
+                  dataKey="volume"
+                  fill="#2E75B6"
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={40}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+            {/* Légende */}
+            <p className="text-xs text-gray-400 text-center mt-2">
+              Volume total : {totalVolume} L • {consommationsFiltrees.length}{" "}
+              relevé(s)
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Historique index par compteur */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">

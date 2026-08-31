@@ -112,6 +112,10 @@ export const factureService = {
       client_id: clientId,
     }),
   genererToutes: () => api.post("/factures/generer-toutes/"),
+  envoyerPDF: (id, pdfBase64) =>
+    api.post(`/factures/${id}/envoyer-pdf/`, {
+      pdf_base64: pdfBase64,
+    }),
 };
 
 // ===== ALERTES =====

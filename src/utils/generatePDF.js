@@ -1,12 +1,14 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../assets/logo.jpg";
+import { factureService } from "../services/api";
 
-export const genererFacturePDF = async facture => {
+// ===== CONSTRUCTION DU PDF (fonction commune) =====
+const construirePDF = async facture => {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  // ===== CHARGER LE LOGO =====
+  // Charger le logo
   const getLogoBase64 = () => {
     return new Promise(resolve => {
       const img = new Image();
@@ -24,14 +26,11 @@ export const genererFacturePDF = async facture => {
 
   const logoBase64 = await getLogoBase64();
 
-  // ===== EN-TÊTE =====
+  // EN-TÊTE
   doc.setFillColor(30, 78, 121);
   doc.rect(0, 0, pageWidth, 55, "F");
-
-  // Logo
   doc.addImage(logoBase64, "JPEG", 10, 8, 32, 32);
 
-  // Titre à côté du logo
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
@@ -42,7 +41,6 @@ export const genererFacturePDF = async facture => {
   doc.text("Système Intelligent de Gestion d'Eau IoT", 48, 28);
   doc.text("Sénégal | contact@smartndiyam.sn", 48, 35);
 
-  // Numéro facture à droite
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(255, 255, 255);
@@ -53,7 +51,6 @@ export const genererFacturePDF = async facture => {
     { align: "right" }
   );
 
-  // Dates
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(200, 220, 255);
@@ -64,7 +61,6 @@ export const genererFacturePDF = async facture => {
     { align: "right" }
   );
 
-  // Date limite en rouge/orange
   doc.setTextColor(255, 180, 100);
   doc.setFont("helvetica", "bold");
   doc.text(
@@ -74,14 +70,13 @@ export const genererFacturePDF = async facture => {
     { align: "right" }
   );
 
-  // Période de la facture
   doc.setTextColor(255, 220, 100);
   doc.setFontSize(10);
   doc.text(`Période : ${facture.periode_label || "N/A"}`, pageWidth - 15, 44, {
     align: "right",
   });
 
-  // ===== STATUT (tous les statuts) =====
+  // STATUT
   const statutColors = {
     payee: [34, 197, 94],
     en_retard: [239, 68, 68],
@@ -102,9 +97,8 @@ export const genererFacturePDF = async facture => {
     align: "center",
   });
 
-  // ===== INFOS CLIENT =====
+  // INFOS CLIENT
   let currentY = 65;
-
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
@@ -141,7 +135,7 @@ export const genererFacturePDF = async facture => {
 
   currentY += 12;
 
-  // ===== RELEVÉ DES INDEX =====
+  // RELEVÉ DES INDEX
   if (facture.index_list && facture.index_list.length > 0) {
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(11);
@@ -150,9 +144,8 @@ export const genererFacturePDF = async facture => {
     doc.setDrawColor(30, 78, 121);
     doc.line(15, currentY + 2, pageWidth - 15, currentY + 2);
 
-    const nouvelIndex = facture.index_list[0]; // plus récent
-    const ancienIndex = facture.index_list[1]; // précédent
-
+    const nouvelIndex = facture.index_list[0];
+    const ancienIndex = facture.index_list[1];
     const indexData = [];
 
     if (ancienIndex) {
@@ -162,7 +155,6 @@ export const genererFacturePDF = async facture => {
         new Date(ancienIndex.date_releve).toLocaleDateString("fr-FR"),
       ]);
     }
-
     if (nouvelIndex) {
       indexData.push([
         "Nouvel index",
@@ -170,11 +162,10 @@ export const genererFacturePDF = async facture => {
         new Date(nouvelIndex.date_releve).toLocaleDateString("fr-FR"),
       ]);
     }
-
     if (ancienIndex && nouvelIndex) {
       const conso = parseFloat(
-        nouvelIndex.valeur_index - ancienIndex.valeur_index
-      ).toFixed(4);
+        (nouvelIndex.valeur_index - ancienIndex.valeur_index).toFixed(4)
+      );
       const consoLitres = (conso * 1000).toFixed(2);
       indexData.push([
         "Consommation calculée",
@@ -193,10 +184,7 @@ export const genererFacturePDF = async facture => {
         fontStyle: "bold",
         fontSize: 10,
       },
-      bodyStyles: {
-        fontSize: 10,
-        textColor: [60, 60, 60],
-      },
+      bodyStyles: { fontSize: 10, textColor: [60, 60, 60] },
       didParseCell: data => {
         if (
           data.row.index === indexData.length - 1 &&
@@ -208,9 +196,7 @@ export const genererFacturePDF = async facture => {
           data.cell.styles.textColor = [30, 78, 121];
         }
       },
-      alternateRowStyles: {
-        fillColor: [240, 248, 255],
-      },
+      alternateRowStyles: { fillColor: [240, 248, 255] },
       columnStyles: {
         0: { cellWidth: 60 },
         1: { cellWidth: 75 },
@@ -221,14 +207,46 @@ export const genererFacturePDF = async facture => {
 
     currentY = doc.lastAutoTable.finalY + 10;
   }
-  // ===== DÉTAIL TRANCHES =====
+
+  // DÉTAILS FACTURE
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("DÉTAILS DE LA FACTURE", 15, currentY);
+  doc.setDrawColor(30, 78, 121);
+  doc.line(15, currentY + 2, pageWidth - 15, currentY + 2);
+
+  autoTable(doc, {
+    startY: currentY + 6,
+    head: [["Description", "Volume", "Prix unitaire", "Montant"]],
+    body: [
+      [
+        "Consommation d'eau potable",
+        `${facture.volume_total} L`,
+        facture.tarif_detail ? "Voir détail tranches ci-dessus" : "N/A",
+        `${facture.montant?.toLocaleString("fr-FR")} FCFA`,
+      ],
+    ],
+    headStyles: {
+      fillColor: [30, 78, 121],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      fontSize: 10,
+    },
+    bodyStyles: { fontSize: 10, textColor: [60, 60, 60] },
+    alternateRowStyles: { fillColor: [240, 248, 255] },
+    margin: { left: 15, right: 15 },
+  });
+
+  currentY = doc.lastAutoTable.finalY + 8;
+
+  // TARIFICATION PAR TRANCHES
   if (facture.tarif_detail) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(30, 78, 121);
     doc.text("Tarification par tranches :", 15, currentY);
     currentY += 6;
-
     doc.setFont("helvetica", "normal");
     doc.setTextColor(80, 80, 80);
     doc.text(
@@ -251,44 +269,7 @@ export const genererFacturePDF = async facture => {
     currentY += 10;
   }
 
-  // ===== DÉTAILS FACTURE =====
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(11);
-  doc.setFont("helvetica", "bold");
-  doc.text("DÉTAILS DE LA FACTURE", 15, currentY);
-  doc.setDrawColor(30, 78, 121);
-  doc.line(15, currentY + 2, pageWidth - 15, currentY + 2);
-
-  autoTable(doc, {
-    startY: currentY + 6,
-    head: [["Description", "Volume", "Prix unitaire", "Montant"]],
-    body: [
-      [
-        "Consommation d'eau potable",
-        `${facture.volume_total} L`,
-        facture.tarif_detail ? `Voir détail tranches ci-dessus` : "N/A",
-        `${facture.montant?.toLocaleString("fr-FR")} FCFA`,
-      ],
-    ],
-    headStyles: {
-      fillColor: [30, 78, 121],
-      textColor: [255, 255, 255],
-      fontStyle: "bold",
-      fontSize: 10,
-    },
-    bodyStyles: {
-      fontSize: 10,
-      textColor: [60, 60, 60],
-    },
-    alternateRowStyles: {
-      fillColor: [240, 248, 255],
-    },
-    margin: { left: 15, right: 15 },
-  });
-
-  currentY = doc.lastAutoTable.finalY + 8;
-
-  // ===== TOTAL =====
+  // TOTAL
   doc.setFillColor(30, 78, 121);
   doc.rect(pageWidth - 85, currentY, 70, 22, "F");
   doc.setTextColor(255, 255, 255);
@@ -306,7 +287,7 @@ export const genererFacturePDF = async facture => {
 
   currentY += 30;
 
-  // ===== MODE PAIEMENT si payée =====
+  // MODE PAIEMENT si payée
   if (facture.statut === "payee" && facture.mode_paiement) {
     doc.setFillColor(220, 252, 231);
     doc.roundedRect(15, currentY, 95, 18, 3, 3, "F");
@@ -330,14 +311,13 @@ export const genererFacturePDF = async facture => {
     currentY += 25;
   }
 
-  // ===== MODES DE PAIEMENT =====
+  // MODES DE PAIEMENT
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text("MODES DE PAIEMENT ACCEPTÉS", 15, currentY);
   doc.setDrawColor(200, 200, 200);
   doc.line(15, currentY + 2, pageWidth - 15, currentY + 2);
-
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(80, 80, 80);
@@ -357,7 +337,7 @@ export const genererFacturePDF = async facture => {
     currentY + 24
   );
 
-  // ===== PIED DE PAGE =====
+  // PIED DE PAGE
   const footerY = doc.internal.pageSize.getHeight() - 18;
   doc.setFillColor(30, 78, 121);
   doc.rect(0, footerY - 3, pageWidth, 22, "F");
@@ -377,8 +357,47 @@ export const genererFacturePDF = async facture => {
     { align: "center" }
   );
 
-  // ===== VISUALISER PUIS TÉLÉCHARGER =====
+  return doc;
+};
+
+// ===== FONCTION 1 : Visualiser seulement (bouton PDF dans liste) =====
+export const visualiserFacturePDF = async facture => {
+  const doc = await construirePDF(facture);
   const pdfBlob = doc.output("blob");
   const pdfUrl = URL.createObjectURL(pdfBlob);
   window.open(pdfUrl, "_blank");
+};
+
+// ===== FONCTION 2 : Générer + envoyer par email (lors de la génération) =====
+export const genererEtEnvoyerPDF = async facture => {
+  const doc = await construirePDF(facture);
+
+  // Visualiser dans nouvel onglet
+  const pdfBlob = doc.output("blob");
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  window.open(pdfUrl, "_blank");
+
+  // Envoyer par email avec pièce jointe
+  try {
+    const pdfBase64 = doc.output("datauristring").split(",")[1];
+    await factureService.envoyerPDF(facture.id, pdfBase64);
+    console.log("PDF envoyé par email au client !");
+  } catch (error) {
+    console.error("Erreur envoi email PDF:", error.response?.data || error);
+  }
+};
+
+// Export par défaut pour compatibilité
+export const genererFacturePDF = visualiserFacturePDF;
+
+// ===== FONCTION 3 : Juste envoyer par email (sans ouvrir onglet) =====
+export const envoyerPDFParEmail = async facture => {
+  const doc = await construirePDF(facture);
+  try {
+    const pdfBase64 = doc.output("datauristring").split(",")[1];
+    await factureService.envoyerPDF(facture.id, pdfBase64);
+    console.log(`PDF envoyé à ${facture.client_detail?.email}`);
+  } catch (error) {
+    console.error("Erreur envoi email PDF:", error);
+  }
 };
