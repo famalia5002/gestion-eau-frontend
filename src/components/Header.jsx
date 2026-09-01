@@ -321,6 +321,15 @@ export default function Header({ titre }) {
                   >
                     Voir alertes
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowNotifs(false);
+                      navigate("/admin/avis");
+                    }}
+                    className="text-xs text-center py-1.5 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition font-medium"
+                  >
+                    Voir avis
+                  </button>
                 </div>
               )}
             </div>

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { MdWaterDrop } from "react-icons/md";
 import logo from "../assets/logo.jpg";
+import bgLogin from "../assets/bg-login.jfif";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -32,21 +32,43 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-800 to-primary-500 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: `url(${bgLogin})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Overlay sombre pour lisibilité */}
+      <div className="absolute inset-0 bg-black opacity-50" />
+
+      {/* Formulaire transparent */}
+      <div
+        className="relative w-full max-w-md rounded-2xl shadow-2xl p-8"
+        style={{
+          backgroundColor: "rgba(255, 255, 255, 0.15)",
+          backdropFilter: "blur(0px)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+        }}
+      >
         {/* Logo et titre */}
         <div className="text-center mb-8">
           <img
             src={logo}
             alt="Logo"
-            className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-primary-200"
+            className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-white"
           />
-          <h1 className="text-2xl font-bold text-gray-800">Smart Ndiyam</h1>
+          <h1 className="text-3xl font-bold text-white">Smart Ndiyam</h1>
+          <p className="text-white text-opacity-80 text-sm mt-1">
+            Système Intelligent de Gestion d'Eau IoT
+          </p>
         </div>
 
         {/* Message d'erreur */}
         {erreur && (
-          <div className="bg-red-50 text-red-600 border border-red-200 rounded-lg p-3 mb-4 text-sm">
+          <div className="bg-red-500 bg-opacity-80 text-white border border-red-300 rounded-lg p-3 mb-4 text-sm">
             {erreur}
           </div>
         )}
@@ -55,7 +77,7 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Username */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-white mb-1">
               Nom d'utilisateur
             </label>
             <input
@@ -64,13 +86,17 @@ export default function Login() {
               onChange={e => setUsername(e.target.value)}
               placeholder="Entrez votre username"
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-white transition text-white placeholder-white placeholder-opacity-70"
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+              }}
             />
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-white mb-1">
               Mot de passe
             </label>
             <input
@@ -79,7 +105,11 @@ export default function Login() {
               onChange={e => setPassword(e.target.value)}
               placeholder="Entrez votre mot de passe"
               required
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-white transition text-white placeholder-white placeholder-opacity-70"
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.2)",
+                border: "1px solid rgba(255, 255, 255, 0.4)",
+              }}
             />
           </div>
 
@@ -87,7 +117,11 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+            className="w-full font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center gap-2 mt-2"
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.9)",
+              color: "#1F4E79",
+            }}
           >
             {loading ? (
               <>
@@ -113,14 +147,14 @@ export default function Login() {
                 Connexion...
               </>
             ) : (
-              " Se connecter"
+              "Se connecter"
             )}
           </button>
         </form>
 
         {/* Footer */}
-        <p className="text-center text-gray-400 text-xs mt-6">
-          Système Intelligent de Gestion d'Eau--Smart Ndiyam © 2026
+        <p className="text-center text-white text-opacity-70 text-xs mt-6">
+          Smart Ndiyam © 2026 - Sénégal
         </p>
       </div>
     </div>
