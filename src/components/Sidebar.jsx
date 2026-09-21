@@ -12,6 +12,7 @@ import {
   MdStar,
   MdLogout,
   MdSettings,
+  MdMap,
   MdAdminPanelSettings,
 } from "react-icons/md";
 

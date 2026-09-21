@@ -13,6 +13,7 @@ import {
   MdVisibility,
   MdLocationOn,
   MdLock,
+  MdMap,
   MdLockOpen,
 } from "react-icons/md";
 import { useNavigate } from "react-router-dom";
@@ -207,13 +208,26 @@ export default function Compteurs() {
             {compteurs.length} compteur(s) enregistré(s)
           </p>
         </div>
-        <button
-          onClick={ouvrirAjout}
-          className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-xl transition font-medium"
-        >
-          <MdAdd className="text-xl" />
-          Ajouter un compteur
-        </button>
+        <div className="flex items-center gap-3">
+          {" "}
+          {/* ← wrapper */}
+          {/* Bouton Voir la carte */}
+          <button
+            onClick={() => navigate("/admin/carte")}
+            className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition font-medium"
+          >
+            <MdMap className="text-xl" />
+            Voir la carte
+          </button>
+          {/* Bouton Ajouter */}
+          <button
+            onClick={ouvrirAjout}
+            className="flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-xl transition font-medium"
+          >
+            <MdAdd className="text-xl" />
+            Ajouter un compteur
+          </button>
+        </div>
       </div>
 
       {/* Filtres */}

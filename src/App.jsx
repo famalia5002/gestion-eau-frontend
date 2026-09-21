@@ -14,6 +14,7 @@ import IndexCompteur from "./pages/IndexCompteur";
 import Alertes from "./pages/Alertes";
 import Avis from "./pages/Avis";
 import Demandes from "./pages/Demandes";
+import Carte from "./pages/Carte";
 
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="alertes" element={<Alertes />} />
           <Route path="avis" element={<Avis />} />
           <Route path="demandes" element={<Demandes />} />
+          <Route path="/admin/carte" element={<Carte />} />
         </Route>
       </Routes>
     </BrowserRouter>
