@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useEffect, useState, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useSearchParams } from "react-router-dom";
 import { compteurService } from "../services/api";
 
 // Corriger les icônes Leaflet
@@ -37,13 +38,45 @@ const iconRouge = new L.Icon({
   popupAnchor: [1, -34],
 });
 
+// Icône bleue (compteur sélectionné)
+const iconBleue = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+});
+
+// Composant pour centrer la carte sur un compteur
+function CentrerSurCompteur({ lat, lng }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (lat && lng) {
+      map.setView([lat, lng], 17);
+    }
+  }, [lat, lng, map]);
+
+  return null;
+}
+
 export default function Carte() {
   const [compteurs, setCompteurs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filtre, setFiltre] = useState("tous");
+  const [searchParams] = useSearchParams();
+  const markersRef = useRef({});
 
-  // Centre de la carte : Sénégal
-  const centre = [14.6937, -17.4441];
+  // Récupérer les paramètres URL
+  const latParam = parseFloat(searchParams.get("lat"));
+  const lngParam = parseFloat(searchParams.get("lng"));
+  const idParam = parseInt(searchParams.get("id"));
+
+  // Centre de la carte
+  const centre =
+    latParam && lngParam ? [latParam, lngParam] : [14.6937, -17.4441];
 
   useEffect(() => {
     fetchCompteurs();
@@ -61,6 +94,8 @@ export default function Carte() {
   };
 
   const getIcone = compteur => {
+    // Icône bleue pour le compteur sélectionné
+    if (compteur.id === idParam) return iconBleue;
     if (compteur.etat_vanne === "fermee") return iconRouge;
     return iconVerte;
   };
@@ -97,6 +132,7 @@ export default function Carte() {
         <p className="text-gray-500 mt-1">
           Visualisation géographique des compteurs Smart Ndiyam
         </p>
+       
       </div>
 
       {/* Stats */}
@@ -141,7 +177,7 @@ export default function Carte() {
         ) : (
           <MapContainer
             center={centre}
-            zoom={13}
+            zoom={latParam && lngParam ? 17 : 13}
             style={{ height: "600px", width: "100%" }}
           >
             <TileLayer
@@ -149,80 +185,98 @@ export default function Carte() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            {compteursFiltres.map(compteur => (
-              <Marker
-                key={compteur.id}
-                position={[compteur.latitude, compteur.longitude]}
-                icon={getIcone(compteur)}
-              >
-                <Popup>
-                  <div className="p-1 min-w-48">
-                    <h3 className="font-bold text-gray-800 mb-2 text-base">
-                      Compteur {compteur.numero_compteur}
-                    </h3>
-                    <div className="space-y-1 text-sm">
-                      {/* Client */}
-                      <p>
-                        <span className="text-gray-500">Client : </span>
-                        <span className="font-medium">
-                          {compteur.client_detail?.nom_complet ||
-                            "Non attribué"}
-                        </span>
-                      </p>
+            {/* Centrer automatiquement si paramètre URL */}
+            {latParam && lngParam && (
+              <CentrerSurCompteur lat={latParam} lng={lngParam} />
+            )}
 
-                      {/* Zone */}
-                      <p>
-                        <span className="text-gray-500">Zone : </span>
-                        <span className="font-medium">
-                          {compteur.client_detail?.zone || "N/A"}
-                        </span>
-                      </p>
+            {compteursFiltres.map(
+              compteur =>
+                compteur.latitude &&
+                compteur.longitude && (
+                  <Marker
+                    key={compteur.id}
+                    position={[compteur.latitude, compteur.longitude]}
+                    icon={getIcone(compteur)}
+                    ref={ref => {
+                      if (ref) {
+                        markersRef.current[compteur.id] = ref;
+                        // Ouvrir popup automatiquement si compteur sélectionné
+                        if (compteur.id === idParam) {
+                          setTimeout(() => ref.openPopup(), 800);
+                        }
+                      }
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-1 min-w-48">
+                        <h3 className="font-bold text-gray-800 mb-2 text-base">
+                          Compteur {compteur.numero_compteur}
+                        </h3>
+                        <div className="space-y-1 text-sm">
+                          {/* Client */}
+                          <p>
+                            <span className="text-gray-500">Client : </span>
+                            <span className="font-medium">
+                              {compteur.client_detail?.nom_complet ||
+                                "Non attribué"}
+                            </span>
+                          </p>
 
-                      {/* Adresse */}
-                      <p>
-                        <span className="text-gray-500">Adresse : </span>
-                        <span className="font-medium">
-                          {compteur.client_detail?.adresse || "N/A"}
-                        </span>
-                      </p>
+                          {/* Zone */}
+                          <p>
+                            <span className="text-gray-500">Zone : </span>
+                            <span className="font-medium">
+                              {compteur.client_detail?.zone || "N/A"}
+                            </span>
+                          </p>
 
-                      {/* État vanne avec CSS */}
-                      <p className="flex items-center gap-1">
-                        <span className="text-gray-500">Vanne : </span>
-                        <span
-                          className={`font-medium inline-flex items-center gap-1 ${
-                            compteur.etat_vanne === "ouverte"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          <span
-                            className={`inline-block w-2 h-2 rounded-full ${
-                              compteur.etat_vanne === "ouverte"
-                                ? "bg-green-500"
-                                : "bg-red-500"
-                            }`}
-                          />
-                          {compteur.etat_vanne === "ouverte"
-                            ? "Ouverte"
-                            : "Fermée"}
-                        </span>
-                      </p>
+                          {/* Adresse */}
+                          <p>
+                            <span className="text-gray-500">Adresse : </span>
+                            <span className="font-medium">
+                              {compteur.client_detail?.adresse || "N/A"}
+                            </span>
+                          </p>
 
-                      {/* Téléphone */}
-                      {compteur.client_detail?.telephone && (
-                        <p>
-                          <span className="text-gray-500">Tél : </span>
-                          <span className="font-medium">
-                            {compteur.client_detail.telephone}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+                          {/* État vanne */}
+                          <p className="flex items-center gap-1">
+                            <span className="text-gray-500">Vanne : </span>
+                            <span
+                              className={`font-medium inline-flex items-center gap-1 ${
+                                compteur.etat_vanne === "ouverte"
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              <span
+                                className={`inline-block w-2 h-2 rounded-full ${
+                                  compteur.etat_vanne === "ouverte"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                }`}
+                              />
+                              {compteur.etat_vanne === "ouverte"
+                                ? "Ouverte"
+                                : "Fermée"}
+                            </span>
+                          </p>
+
+                          {/* Téléphone */}
+                          {compteur.client_detail?.telephone && (
+                            <p>
+                              <span className="text-gray-500">Tél : </span>
+                              <span className="font-medium">
+                                {compteur.client_detail.telephone}
+                              </span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )
+            )}
           </MapContainer>
         )}
       </div>
@@ -238,6 +292,10 @@ export default function Carte() {
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
             <span className="text-sm text-gray-600">Vanne fermée</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-full bg-blue-500" />
+            <span className="text-sm text-gray-600">Compteur sélectionné</span>
           </div>
         </div>
       </div>

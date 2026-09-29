@@ -445,6 +445,20 @@ export default function Compteurs() {
                   {/* Actions */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
+                      {/* Bouton Localiser */}
+                      {compteur.latitude && compteur.longitude && (
+                        <button
+                          onClick={() =>
+                            navigate(
+                              `/admin/carte?lat=${compteur.latitude}&lng=${compteur.longitude}&id=${compteur.id}`
+                            )
+                          }
+                          className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
+                          title="Localiser "
+                        >
+                          <MdLocationOn />
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setCompteurDetail(compteur);
